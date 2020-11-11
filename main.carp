@@ -1,0 +1,35 @@
+(Project.config "generate-only" true)
+
+(load-and-use SDL)
+
+(deftype SDLContext [app SDLApp state Int])
+
+(defn tick [state]
+  (+ state 10))
+
+(defn draw [app rend state]
+  (bg rend &(rgb (/ @state 2) (/ @state 3) (/ @state 4))))
+
+(defn main-loop [context]
+  (let-do [last-t (get-ticks)
+           app (SDLContext.app context)
+           rend (SDLApp.renderer app)
+           target-dt (/ 1000 @(SDLApp.fps app))]
+    (SDLContext.set-state! context (SDLApp.reduce-events app &SDLApp.quit-on-esc @(SDLContext.state context)))
+    (SDLContext.set-state! context (tick @(SDLContext.state context)))
+    (let-do [dt (- (get-ticks) last-t)
+             time-left (- target-dt dt)]
+      (when (pos? time-left)
+        (delay time-left)))
+    (draw app @rend (SDLContext.state context))
+    (render-present @rend)))
+
+(register em-main-loop (Fn [(Fn [(Ref SDLContext)] ()) (Ref SDLContext) Int Int] Int) "emscripten_set_main_loop_arg")
+
+(defn main []
+  (let-do [app (SDLApp.create "The Minimalistic Color Generator" 400 300)
+           state 0
+           renderer @(SDLApp.renderer &app)]
+    (SDLApp.set-renderer! &app renderer)
+    (println* "Hello WASM")
+    (em-main-loop main-loop &(SDLContext.init app state) 0 1)))
