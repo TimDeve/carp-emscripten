@@ -2,6 +2,8 @@
 
 (load-and-use SDL)
 
+(system-include "emscripten.h")
+
 (deftype SDLContext [app SDLApp state Int])
 
 (defn tick [state]
@@ -24,7 +26,7 @@
     (draw app @rend (SDLContext.state context))
     (render-present @rend)))
 
-(register em-main-loop (Fn [(Fn [(Ref SDLContext)] ()) (Ref SDLContext) Int Int] Int) "emscripten_set_main_loop_arg")
+(register em-main-loop (Fn [(Fn [(Ref SDLContext)] ()) (Ref SDLContext) Int Int] ()) "emscripten_set_main_loop_arg")
 
 (defn main []
   (let-do [app (SDLApp.create "The Minimalistic Color Generator" 400 300)
