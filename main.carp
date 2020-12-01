@@ -4,7 +4,20 @@
 
 (system-include "emscripten.h")
 
-(deftype SDLContext [app SDLApp state Int])
+(defmodule Emscripten
+  (private main-loop-arg-internal)
+  (hidden main-loop-arg-internal)
+  (register main-loop-arg-internal (Fn [(Ptr ()) (Ptr ()) Int Bool] ())
+                                   "emscripten_set_main_loop_arg")
+
+  (sig set-main-loop (Fn [(Ref (Fn [] ())) Int Bool] ()))
+  (defn set-main-loop [callback fps simulate-infinite-loop]
+    (main-loop-arg-internal (Function.unsafe-ptr callback)
+                            (Function.unsafe-env-ptr callback)
+                            fps
+                            simulate-infinite-loop)))
+
+(deftype (SDLContext a) [app SDLApp state a])
 
 (defn tick [state]
   (+ state 10))
@@ -26,12 +39,11 @@
     (draw app @rend (SDLContext.state context))
     (render-present @rend)))
 
-(register em-main-loop (Fn [(Fn [(Ref SDLContext)] ()) (Ref SDLContext) Int Int] ()) "emscripten_set_main_loop_arg")
-
 (defn main []
-  (let-do [app (SDLApp.create "The Minimalistic Color Generator" 400 300)
-           state 0
-           renderer @(SDLApp.renderer &app)]
-    (SDLApp.set-renderer! &app renderer)
-    (println* "Hello WASM")
-    (em-main-loop main-loop &(SDLContext.init app state) 0 1)))
+  (let-do [app      (SDLApp.create "The Minimalistic Color Generator" 400 300)
+           renderer @(SDLApp.renderer &app)
+           _        (SDLApp.set-renderer! &app renderer)
+           context  &(SDLContext.init app 0)]
+    (println* "Hello WASI")
+    (Emscripten.set-main-loop &(fn [] (main-loop context)) 0 true)))
+
