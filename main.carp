@@ -26,16 +26,17 @@
           ctx &(SDLCtx.init (SDL.get-ticks) initial-state)
           main-loop
           (fn []
-           (do
-             (SDLCtx.set-state! ctx (reduce-events app &event-fn @(SDLCtx.state ctx)))
-             (SDLCtx.set-state! ctx (update-fn @(SDLCtx.state ctx)))
+           (let-do [state @(SDLCtx.state ctx)]
+             (set! state (reduce-events app &event-fn state))
+             (set! state (update-fn state))
              (let-do [dt (- (SDL.get-ticks) @(SDLCtx.last-ticks ctx))
                       time-left (- target-dt dt)]
                (when (pos? time-left)
                  (SDL.delay time-left)))
              (SDLCtx.set-last-ticks! ctx (SDL.get-ticks))
-             (draw-fn app rend (SDLCtx.state ctx))
-             (SDL.render-present rend)))]
+             (draw-fn app rend &state)
+             (SDL.render-present rend)
+             (SDLCtx.set-state! ctx state)))]
       (Emscripten.set-main-loop &main-loop 0 true))))
 
 (defn tick [state]
