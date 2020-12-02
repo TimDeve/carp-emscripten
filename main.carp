@@ -17,7 +17,26 @@
                             fps
                             simulate-infinite-loop)))
 
-(deftype (SDLContext a) [app SDLApp state a])
+(deftype (SDLCtx a) [last-ticks Int state a])
+
+(defmodule SDLApp
+  (defn run-with-callbacks-emscripten [app event-fn update-fn draw-fn initial-state]
+    (let [rend @(SDLApp.renderer app)
+          target-dt (/ 1000 @(SDLApp.fps app))
+          ctx &(SDLCtx.init (SDL.get-ticks) initial-state)
+          main-loop
+          (fn []
+           (do
+             (SDLCtx.set-state! ctx (reduce-events app &event-fn @(SDLCtx.state ctx)))
+             (SDLCtx.set-state! ctx (update-fn @(SDLCtx.state ctx)))
+             (let-do [dt (- (SDL.get-ticks) @(SDLCtx.last-ticks ctx))
+                      time-left (- target-dt dt)]
+               (when (pos? time-left)
+                 (SDL.delay time-left)))
+             (SDLCtx.set-last-ticks! ctx (SDL.get-ticks))
+             (draw-fn app rend (SDLCtx.state ctx))
+             (SDL.render-present rend)))]
+      (Emscripten.set-main-loop &main-loop 0 true))))
 
 (defn tick [state]
   (+ state 10))
@@ -25,25 +44,8 @@
 (defn draw [app rend state]
   (bg rend &(rgb (/ @state 2) (/ @state 3) (/ @state 4))))
 
-(defn main-loop [context]
-  (let-do [last-t (get-ticks)
-           app (SDLContext.app context)
-           rend (SDLApp.renderer app)
-           target-dt (/ 1000 @(SDLApp.fps app))]
-    (SDLContext.set-state! context (SDLApp.reduce-events app &SDLApp.quit-on-esc @(SDLContext.state context)))
-    (SDLContext.set-state! context (tick @(SDLContext.state context)))
-    (let-do [dt (- (get-ticks) last-t)
-             time-left (- target-dt dt)]
-      (when (pos? time-left)
-        (delay time-left)))
-    (draw app @rend (SDLContext.state context))
-    (render-present @rend)))
-
 (defn main []
-  (let-do [app      (SDLApp.create "The Minimalistic Color Generator" 400 300)
-           renderer @(SDLApp.renderer &app)
-           _        (SDLApp.set-renderer! &app renderer)
-           context  &(SDLContext.init app 0)]
-    (println* "Hello WASI")
-    (Emscripten.set-main-loop &(fn [] (main-loop context)) 0 true)))
+  (let [app (SDLApp.create "The Minimalistic Color Generator" 400 300)
+        state 0]
+    (SDLApp.run-with-callbacks-emscripten &app SDLApp.quit-on-esc tick draw state)))
 
